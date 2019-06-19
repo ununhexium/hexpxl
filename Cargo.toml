@@ -1,0 +1,16 @@
+[package]
+
+name = "hexpxl"
+version = "0.0.1"
+authors = [ "Christophe '116' Loiseau <116@lab0.net>" ]
+
+
+[dependencies]
+
+image = "0.21.2"
+
+
+[profil.dev]
+
+opt-level=2
+
