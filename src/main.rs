@@ -1,8 +1,7 @@
 extern crate image;
 
-use image::{Pixel, Pixels, RgbImage, ImageBuffer, DynamicImage, GenericImageView, RgbaImage};
+use image::{ImageBuffer, DynamicImage, GenericImageView, RgbaImage};
 use std::f32::consts::PI;
-use std::cmp::min;
 
 fn main() {
     let img = image::open("/tmp/screenshot.png").unwrap();
@@ -89,23 +88,24 @@ fn hex_pixelize(img: &DynamicImage, outer_radius: f32) -> RgbaImage {
             (false, true) => different_parity,
         };
 
-        let (x_index, y_index) = closest(
-            (x, y),
-            [a, b].to_vec().into_iter().map(|it| (it.0 * r, it.1 * g)).collect()
-        );
+        // find the closest point
+        let (hx1,hy1) = (a.0 * r, a.1 * g);
+        let (hx2,hy2) = (b.0 * r, b.1 * g);
+        let d1 = sqr(hx1 - x) + sqr(hy1 - y);
+        let d2 = sqr(hx2 - x) + sqr(hy2 - y);
+        let (x_index, y_index) = if d1 < d2 {
+            (hx1, hy1)
+        } else {
+            (hx2, hy2)
+        };
 
-        println!("x idx = {} - y idx = {}", x_index, y_index);
+//        println!("x idx = {} - y idx = {}", x_index, y_index);
 
-        *pixel = img.get_pixel(min(x_index, w-1), min(y_index, h-1));
+        *pixel = img.get_pixel(x_index.min(w - 1), y_index.min(h - 1));
     }
     return pixelized;
 }
 
-
-fn closest((px, py): (u32, u32), o: Vec<ImagePoint>) -> (u32, u32) {
-    return o.into_iter().min_by_key(|it| sqr((*it).0 as i32 - px as i32) + sqr((*it).1 as i32 - py as i32)).unwrap();
-}
-
-fn sqr(i: i32) -> u32 {
-    return (i * i) as u32;
+fn sqr(i: u32) -> u32 {
+    return i * i;
 }
