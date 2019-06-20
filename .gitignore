@@ -1,5 +1,6 @@
 .idea/
 *.lock
+*.swp
 out.png
 target/
 
