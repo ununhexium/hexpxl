@@ -1,42 +1,80 @@
 extern crate image;
 
+#[macro_use]
+extern crate clap;
+
+
 use image::{ImageBuffer, DynamicImage, GenericImageView, RgbaImage};
 use std::f32::consts::PI;
+use clap::{App, Arg};
+
+
+arg_enum! {
+    #[derive(Debug)]
+    enum PixelMode {
+        sqr,
+        hex,
+    }
+}
 
 fn main() {
-    pixelize(PixelMode::Hexagon, "/tmp/screenshot.png", "out.png", 20)
+    let matches = App::new("hexpxl, a non-square pixelisation tool")
+        .version("0.1") // TODO: find how to sync this with cargo.toml
+        .author("Christophe '116' Loiseau <116@lab0.net>")
+        .about("Pixelises an image using a hexagonal pattern")
+        .arg(
+            Arg::from_usage("<source> 'Input image path'")
+                .required(true)
+        )
+        .arg(
+            Arg::from_usage("<destination> 'Output image path'")
+                .required(true)
+        )
+        .arg(
+            Arg::from_usage("<size> 'The size of the pixels, in pixel :P'")
+                .default_value("20")
+        )
+        .arg(
+            Arg::from_usage("<mode> 'The PixelMode to use'")
+                .help("The pixelisation mode")
+                .short("m")
+                .long("mode")
+                .default_value("hex")
+        )
+        .get_matches();
+
+
+    let src = matches.value_of("source").unwrap();
+    let dst= matches.value_of("destination").unwrap();
+    let size = value_t!(matches, "size", u32).unwrap_or_else(|e| e.exit());
+    let mode = value_t!(matches.value_of("mode"), PixelMode).unwrap_or_else(|e| e.exit());
+
+    pixelise(mode, src, dst, size)
 }
 
-enum PixelMode {
-    Square,
-    Hexagon,
-}
-
-fn pixelize(mode: PixelMode, src: &str, dst: &str, size: u32) {
+fn pixelise(mode: PixelMode, src: &str, dst: &str, size: u32) {
     let img = image::open(src).unwrap();
-//    println!("dimensions {:?}", img.dimensions());
 
-
-    let pixelized = match mode {
-        PixelMode::Square => square_pixelization(&img, size),
-        PixelMode::Hexagon => hexagon_pixelization(&img, size),
+    let pixelised = match mode {
+        PixelMode::sqr => square_pixelisation(&img, size),
+        PixelMode::hex => hexagon_pixelisation(&img, size),
     };
 
-    pixelized.save(dst).unwrap();
+    pixelised.save(dst).unwrap();
 }
 
-fn square_pixelization(img: &DynamicImage, radius: u32) -> RgbaImage {
+fn square_pixelisation(img: &DynamicImage, radius: u32) -> RgbaImage {
     let (w, h) = img.dimensions();
-    let mut pixelized: RgbaImage = ImageBuffer::new(w, h);
+    let mut pixelised: RgbaImage = ImageBuffer::new(w, h);
 
-    for (x, y, pixel) in pixelized.enumerate_pixels_mut() {
+    for (x, y, pixel) in pixelised.enumerate_pixels_mut() {
         *pixel = img.get_pixel(x / radius * radius, y / radius * radius);
     }
-    return pixelized;
+    return pixelised;
 }
 
 ///
-/// Pixelizes an image using a hexagonal pattern
+/// Pixelises an image using a hexagonal pattern
 ///
 /// Illustration in doc/schema.xcf (gimp file)
 ///
@@ -76,38 +114,33 @@ fn square_pixelization(img: &DynamicImage, radius: u32) -> RgbaImage {
 ///
 /// # Arguments
 ///
-/// * `img` - The input image to pixelize
+/// * `img` - The input image to pixelise
 /// * `outer_radius` - The radius of the hexagon's outer circle
 ///
 
 
-fn hexagon_pixelization(img: &DynamicImage, outer_radius: u32) -> RgbaImage {
-    let (w, h) = img.dimensions();
-    let mut pixelized: RgbaImage = ImageBuffer::new(w, h);
+fn hexagon_pixelisation(img: &DynamicImage, outer_radius: u32) -> RgbaImage {
+    let (width, height) = img.dimensions();
+    let mut pixelised: RgbaImage = ImageBuffer::new(width, height);
 
-    let r = (outer_radius as f32 * (PI / 6.0).cos()) as u32;
-    let g = (3.0 * outer_radius as f32 / 2.0) as u32;
+    let inner_radius = (outer_radius as f32 * (PI / 6.0).cos()) as u32;
+    let gap = (3.0 * outer_radius as f32 / 2.0) as u32;
 
-    for (x, y, pixel) in pixelized.enumerate_pixels_mut() {
-        let x_low = x / r;
-        let x_high = x / r + 1;
+    for (x, y, pixel) in pixelised.enumerate_pixels_mut() {
+        let x_low = x / inner_radius;
+        let x_high = x / inner_radius + 1;
 
-        let y_low = y / g;
-        let y_high = y / g + 1;
+        let y_low = y / gap;
+        let y_high = y / gap + 1;
 
-        let same_parity = ((x_low, y_low), (x_high, y_high));
-        let different_parity = ((x_low, y_high), (x_high, y_low));
-
-        let (a, b) = match (x_low % 2 == 0, y_low % 2 == 0) {
-            (true, true) => same_parity,
-            (false, false) => same_parity,
-            (true, false) => different_parity,
-            (false, true) => different_parity,
+        let (a, b) = match (x_low % 2 == 0) == (y_low % 2 == 0) {
+            true => ((x_low, y_low), (x_high, y_high)),
+            false => ((x_low, y_high), (x_high, y_low)),
         };
 
-        // find the closest point
-        let (hx1, hy1) = (a.0 * r, a.1 * g);
-        let (hx2, hy2) = (b.0 * r, b.1 * g);
+        // find the closest hexagon center point
+        let (hx1, hy1) = (a.0 * inner_radius, a.1 * gap);
+        let (hx2, hy2) = (b.0 * inner_radius, b.1 * gap);
         let d1 = sqr(hx1 - x) + sqr(hy1 - y);
         let d2 = sqr(hx2 - x) + sqr(hy2 - y);
         let (x_index, y_index) = if d1 < d2 {
@@ -116,13 +149,12 @@ fn hexagon_pixelization(img: &DynamicImage, outer_radius: u32) -> RgbaImage {
             (hx2, hy2)
         };
 
-//        println!("x idx = {} - y idx = {}", x_index, y_index);
-
-        *pixel = img.get_pixel(x_index.min(w - 1), y_index.min(h - 1));
+        *pixel = img.get_pixel(x_index.min(width - 1), y_index.min(height - 1));
     }
-    return pixelized;
+    return pixelised;
 }
 
 fn sqr(i: u32) -> u32 {
     return i * i;
 }
+
