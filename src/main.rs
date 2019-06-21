@@ -9,6 +9,16 @@ use std::f32::consts::PI;
 use clap::{App, Arg};
 
 
+macro_rules! sqr {
+    ( $a:expr ) => {
+        {
+            let tmp = $a;
+            tmp * tmp
+        }
+    }
+}
+
+
 arg_enum! {
     #[derive(Debug)]
     enum PixelMode {
@@ -45,7 +55,7 @@ fn main() {
 
 
     let src = matches.value_of("source").unwrap();
-    let dst= matches.value_of("destination").unwrap();
+    let dst = matches.value_of("destination").unwrap();
     let size = value_t!(matches, "size", u32).unwrap_or_else(|e| e.exit());
     let mode = value_t!(matches.value_of("mode"), PixelMode).unwrap_or_else(|e| e.exit());
 
@@ -127,34 +137,35 @@ fn hexagon_pixelisation(img: &DynamicImage, outer_radius: u32) -> RgbaImage {
     let gap = (3.0 * outer_radius as f32 / 2.0) as u32;
 
     for (x, y, pixel) in pixelised.enumerate_pixels_mut() {
-        let x_low = x / inner_radius;
-        let x_high = x / inner_radius + 1;
+        let x_low_idx = x / inner_radius;
+        let x_high_idx = x / inner_radius + 1;
 
-        let y_low = y / gap;
-        let y_high = y / gap + 1;
+        let y_low_idx = y / gap;
+        let y_high_idx = y / gap + 1;
 
-        let (a, b) = match (x_low % 2 == 0) == (y_low % 2 == 0) {
-            true => ((x_low, y_low), (x_high, y_high)),
-            false => ((x_low, y_high), (x_high, y_low)),
-        };
+        let (corner_a_idx, corner_b_idx) =
+            // do they have the same parity?
+            if (x_low_idx % 2 == 0) == (y_low_idx % 2 == 0) {
+                ((x_low_idx, y_low_idx), (x_high_idx, y_high_idx))
+            } else {
+                ((x_low_idx, y_high_idx), (x_high_idx, y_low_idx))
+            };
 
-        // find the closest hexagon center point
-        let (hx1, hy1) = (a.0 * inner_radius, a.1 * gap);
-        let (hx2, hy2) = (b.0 * inner_radius, b.1 * gap);
-        let d1 = sqr(hx1 - x) + sqr(hy1 - y);
-        let d2 = sqr(hx2 - x) + sqr(hy2 - y);
+        // first Hx / Hy
+        let (corner_a_x, corner_a_y) = (corner_a_idx.0 * inner_radius, corner_a_idx.1 * gap);
+        // second Hx / Hy
+        let (corner_b_x, corner_b_y) = (corner_b_idx.0 * inner_radius, corner_b_idx.1 * gap);
+
+        let d1 = sqr!(corner_a_x - x) + sqr!(corner_a_y - y);
+        let d2 = sqr!(corner_b_x - x) + sqr!(corner_b_y - y);
+
         let (x_index, y_index) = if d1 < d2 {
-            (hx1, hy1)
+            (corner_a_x, corner_a_y)
         } else {
-            (hx2, hy2)
+            (corner_b_x, corner_b_y)
         };
 
         *pixel = img.get_pixel(x_index.min(width - 1), y_index.min(height - 1));
     }
     return pixelised;
 }
-
-fn sqr(i: u32) -> u32 {
-    return i * i;
-}
-
