@@ -2,11 +2,14 @@ extern crate image;
 
 #[macro_use]
 extern crate clap;
+extern crate rayon;
 
 
-use image::{ImageBuffer, DynamicImage, GenericImageView, RgbaImage};
+use image::{ImageBuffer, DynamicImage, GenericImageView, RgbaImage, Rgba};
 use std::f32::consts::PI;
+use std::time::{Duration, Instant};
 use clap::{App, Arg};
+use rayon::prelude::*;
 
 
 macro_rules! sqr {
@@ -63,14 +66,20 @@ fn main() {
 }
 
 fn pixelise(mode: PixelMode, src: &str, dst: &str, size: u32) {
+    let load_start = Instant::now();
     let img = image::open(src).unwrap();
+    println!("Image loading time: {}", load_start.elapsed().as_millis());
 
+    let pixelisation_start = Instant::now();
     let pixelised = match mode {
         PixelMode::sqr => square_pixelisation(&img, size),
         PixelMode::hex => hexagon_pixelisation(&img, size),
     };
+    println!("Pixelisation time: {}", pixelisation_start.elapsed().as_millis());
 
+    let save_start = Instant::now();
     pixelised.save(dst).unwrap();
+    println!("Image save time: {}", save_start.elapsed().as_millis());
 }
 
 fn square_pixelisation(img: &DynamicImage, radius: u32) -> RgbaImage {
@@ -127,7 +136,18 @@ fn square_pixelisation(img: &DynamicImage, radius: u32) -> RgbaImage {
 /// * `img` - The input image to pixelise
 /// * `outer_radius` - The radius of the hexagon's outer circle
 ///
+#[derive(Debug)]
+struct Point {
+    x: u32,
+    y: u32,
+}
 
+#[derive(Debug)]
+struct ColoredPoint {
+    x: u32,
+    y: u32,
+    color: Rgba<u8>,
+}
 
 fn hexagon_pixelisation(img: &DynamicImage, outer_radius: u32) -> RgbaImage {
     let (width, height) = img.dimensions();
@@ -136,7 +156,15 @@ fn hexagon_pixelisation(img: &DynamicImage, outer_radius: u32) -> RgbaImage {
     let inner_radius = (outer_radius as f32 * (PI / 6.0).cos()) as u32;
     let gap = (3.0 * outer_radius as f32 / 2.0) as u32;
 
-    for (x, y, pixel) in pixelised.enumerate_pixels_mut() {
+    let coordinates: Vec<Point> = (0..width).flat_map(|x| {
+        return (0..height).map(move |y| {
+            Point { x, y }
+        }).into_iter();
+    }).collect();
+
+    let pixels: Vec<ColoredPoint> = coordinates.par_iter().map(|p| {
+        let x = p.x;
+        let y = p.y;
         let x_low_idx = x / inner_radius;
         let x_high_idx = x / inner_radius + 1;
 
@@ -165,7 +193,17 @@ fn hexagon_pixelisation(img: &DynamicImage, outer_radius: u32) -> RgbaImage {
             (corner_b_x, corner_b_y)
         };
 
-        *pixel = img.get_pixel(x_index.min(width - 1), y_index.min(height - 1));
+        let color = img.get_pixel(x_index.min(width - 1), y_index.min(height - 1));
+        ColoredPoint {
+            x: x,
+            y: y,
+            color: color,
+        }
+    }).collect();
+
+    for (x, y, pixel) in pixelised.enumerate_pixels_mut() {
+        let i = y + x * height;
+        *pixel = pixels[i as usize].color
     }
     return pixelised;
 }

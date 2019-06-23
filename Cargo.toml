@@ -9,9 +9,5 @@ authors = [ "Christophe '116' Loiseau <116@lab0.net>" ]
 
 image = "0.21.2"
 clap = "2.33.0"
-
-
-[profil.dev]
-
-opt-level=2
+rayon = "1.1.0"
 
