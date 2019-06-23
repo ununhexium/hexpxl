@@ -1,7 +1,7 @@
 [package]
 
 name = "hexpxl"
-version = "0.1.0"
+version = "0.1.1"
 authors = [ "Christophe '116' Loiseau <116@lab0.net>" ]
 
 

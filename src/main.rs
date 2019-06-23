@@ -32,7 +32,7 @@ arg_enum! {
 
 fn main() {
     let matches = App::new("hexpxl, a non-square pixelisation tool")
-        .version("0.1") // TODO: find how to sync this with cargo.toml
+        .version("0.1.1") // TODO: find how to sync this with cargo.toml
         .author("Christophe '116' Loiseau <116@lab0.net>")
         .about("Pixelises an image using a hexagonal pattern")
         .arg(
